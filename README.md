@@ -27,9 +27,7 @@ Run the script quickly with the following command:
 python inference.py \
   --model_name Qwen/Qwen2-7B-Instruct \
   --dataset gsm8k \
-  --shot 8 \
-  --begin 0 \
-  --end 200
+  --shot 8 
 ```
 
 ## Important Arguments
