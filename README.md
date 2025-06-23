@@ -34,8 +34,8 @@ python inference.py \
 
 | Argument           | Description                                 |
 | ------------------ |---------------------------------------------|
-| `--model_name`     | Model name or path (e.g., Qwen/Qwen2-7B-Instruct; meta-llama/Meta-Llama-3-8B-Instruct)     |
-| `--dataset`        | Dataset name (`gsm8k`, `strategyqa`, etc.)  |
+| `--model_name`     | Model name or path (e.g., Qwen/Qwen2-7B-Instruct; meta-llama/Meta-Llama-3-8B-Instruct; mistralai/Mistral-7B-Instruct-v0.3)|
+| `--dataset`        | Dataset name (`gsm8k`, `strategyqa`, `svamp`, `gsm_hard`.)  |
 | `--shot`           | Number of few-shot examples (`0`=zero-shot/`8`=8-shot) |
 
 
