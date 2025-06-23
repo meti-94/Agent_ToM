@@ -25,7 +25,7 @@ Run the script quickly with the following command:
 
 ```bash
 python inference.py \
-  --model_name meta-llama/Meta-Llama-3-8B-Instruct \
+  --model_name Qwen/Qwen2-7B-Instruct \
   --dataset gsm8k \
   --shot 8 \
   --begin 0 \
@@ -36,9 +36,9 @@ python inference.py \
 
 | Argument           | Description                                 |
 | ------------------ |---------------------------------------------|
-| `--model_name`     | Model name or path (e.g., meta-llama/Meta-Llama-3-8B-Instruct)     |
+| `--model_name`     | Model name or path (e.g., Qwen/Qwen2-7B-Instruct; meta-llama/Meta-Llama-3-8B-Instruct)     |
 | `--dataset`        | Dataset name (`gsm8k`, `strategyqa`, etc.)  |
-| `--shot`           | Number of few-shot examples (`0`=zero-shot) |
+| `--shot`           | Number of few-shot examples (`0`=zero-shot/`8`=8-shot) |
 
 
 
