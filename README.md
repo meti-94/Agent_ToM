@@ -1,4 +1,4 @@
-# Soft Reasoning: Navigating Solution Spaces in Large Language Models through Controlled Embedding Exploration
+## Soft Reasoning: Navigating Solution Spaces in Large Language Models through Controlled Embedding Exploration
 
 [ICML 2025 Spotlight Paper](https://arxiv.org/abs/2505.24688)
 
@@ -7,7 +7,7 @@
 We recommend using **Python 3.11** and a clean Conda environment:
 
 ```bash
-conda create -n soft_reasoning python=3.11.11
+conda create -n soft_reasoning python=3.11
 conda activate soft_reasoning
 ```
 
@@ -15,7 +15,7 @@ Then install the required packages via `pip`:
 
 
 ```bash
-pip install torch==2.5.1 transformers==4.51.1 vllm==0.7.2 tqdm numpy pyyaml
+pip install torch==2.5.1 transformers==4.51.1 vllm==0.7.2
 ```
 
 
@@ -36,7 +36,7 @@ python inference.py \
 
 | Argument           | Description                                 |
 | ------------------ |---------------------------------------------|
-| `--model_name`     | Model name or path (e.g., Meta-Llama-3)     |
+| `--model_name`     | Model name or path (e.g., meta-llama/Meta-Llama-3-8B-Instruct)     |
 | `--dataset`        | Dataset name (`gsm8k`, `strategyqa`, etc.)  |
 | `--shot`           | Number of few-shot examples (`0`=zero-shot) |
 
