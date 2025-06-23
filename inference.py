@@ -146,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default="meta-llama/Meta-Llama-3-8B-Instruct",help='Name or path of the model to use (e.g., meta-llama/Meta-Llama-3-8B-Instruct, mistralai/Mistral-7B-Instruct-v0.3, Qwen/Qwen2-7B-Instruct).')
     parser.add_argument('--dataset', type=str, default="gsm8k", help='Dataset name. Options: gsm8k, gsm_hard, strategyqa, svamp, aime_2024, aime_2025.')
     parser.add_argument('--max_new_tokens', type=int, default=300, help='The maximum numbers of tokens to generate')
-    parser.add_argument('--seed', type=int, default=42, help='Seed value for reproducibility')
+    parser.add_argument('--seed', type=int, default=1, help='Seed value for reproducibility')
     parser.add_argument('--random_seed', type=int, default=0, help='Random choose a seed.')
     parser.add_argument('--do_sample', action='store_true', help='Use sampling instead of greedy decoding.')
     parser.add_argument('--use_cache', action='store_true', help='Use cache to speed up decoding.')
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--save_path', type=str, default=None, help='Path to save the generated text')
     parser.add_argument('--begin', type=int, default=0, help='Starting index of prompts to process.')
-    parser.add_argument('--end', type=int, default=10, help='Ending index of prompts to process.')
+    parser.add_argument('--end', type=int, default=200, help='Ending index of prompts to process.')
     parser.add_argument('--continue_predict', type=int, default=0, help='Flag to continue from the last processed prompt.')
     parser.add_argument('--num_repeats', type=int, default=5, help='Numbw gnjer of times to repeat each prompt generation.')
     parser.add_argument('--num_iteration', type=int, default=1, help='Number of iterations for prompt generation.')
