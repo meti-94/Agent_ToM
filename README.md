@@ -15,7 +15,7 @@ Then install the required packages via `pip`:
 
 
 ```bash
-pip install torch==2.5.1 transformers==4.51.1 vllm==0.7.2
+pip install torch==2.5.1 transformers==4.51.1 vllm==0.7.2 matplotlib 
 ```
 
 
