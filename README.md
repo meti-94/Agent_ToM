@@ -1,6 +1,8 @@
-## Soft Reasoning: Navigating Solution Spaces in Large Language Models through Controlled Embedding Exploration
+## Introduction
+This repository is used in our paper:
 
-[ICML 2025 Spotlight Paper](https://arxiv.org/abs/2505.24688)
+Soft Reasoning: Navigating Solution Spaces in Large Language Models through Controlled Embedding Exploration
+Qinglin Zhu*, Runcong Zhao*, Hanqi Yan, Yulan He, Yudong Chen, Lin Gui [ICML 2025 Spotlight Paper](https://arxiv.org/abs/2505.24688)
 
 ## Installation
 
