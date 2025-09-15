@@ -111,6 +111,10 @@ def set_model_args(args):
         args.replace_name = "llama"
         args.special_token = "<|reserved_special_token_20|>"
         args.special_token_id = 128025
+    elif "gemma" in args.model_name.lower():
+        args.replace_name = "gemma"
+        args.special_token = "<unused1>"
+        args.special_token_id = 8
 
     # 根据消融实验配置 ablation_type 设置 reward 信息
     if getattr(args, "ablation_type", 0) == 1:

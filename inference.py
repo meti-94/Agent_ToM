@@ -1,4 +1,7 @@
 import os
+os.environ['HF_HOME'] = '/srv/scratch/CRUISE/Mehdi/HF'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+import sys
 import argparse
 import random
 from tqdm import tqdm
@@ -8,7 +11,7 @@ import torch
 from datetime import datetime
 import numpy as np
 import time
-from Search import Search
+from Search import Search, MyNewSearch
 from vllm_run import load_vLLM_model, generate_with_vLLM_model
 from utils.gpu_tools import GPUMonitor
 from utils.my_node import set_model_args
@@ -62,6 +65,8 @@ def save_tree_to_json(root, filename):
 
 def insert_reserved_token(args, string):
     token = args.special_token
+    # print('this is special token', token)
+    # sys.exit()
     result_list = []
     for _ in range(5):
         if len(string) <= 1:
@@ -80,11 +85,13 @@ def insert_reserved_token(args, string):
 
 def main(args):
     tokenizer, model = load_vLLM_model(args.model_name, seed=args.seed, tensor_parallel_size=args.num_gpu)
-    # gpu_monitor = GPUMonitor(model, interval=1.0)
-    # gpu_monitor.start()
+    
+    # sys.exit()
+    # # gpu_monitor = GPUMonitor(model, interval=1.0)
+    # # gpu_monitor.start()
 
-    # atexit.register(gpu_monitor.stop)
-    # atexit.register(gpu_monitor.report)
+    # # atexit.register(gpu_monitor.stop)
+    # # atexit.register(gpu_monitor.report)
 
     if args.json_file_path is None:
         raise ValueError("json_file_path must be specified")
@@ -120,7 +127,7 @@ def main(args):
 
         question_prompt_list = insert_reserved_token(args, question_prompt)
 
-        Search_agent = Search(
+        Search_agent = MyNewSearch(
             model=model,
             tokenizer=tokenizer,
             args=args,

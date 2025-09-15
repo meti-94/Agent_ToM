@@ -153,6 +153,49 @@ def factory(insert_embedding, model_name='llama', special_token_id=128025):
         hidden_states, _ = self.norm(hidden_states, residual)
         return hidden_states
 
+    def gemma_forward(
+        self,
+        input_ids,
+        positions,
+        kv_caches,
+        attn_metadata,
+        intermediate_tensors,
+        inputs_embeds,
+    ):
+        """
+        Custom forward for Gemma models to insert special embeddings.
+        """
+        # Get embeddings
+        hidden_states = inputs_embeds if inputs_embeds is not None else self.get_input_embeddings(input_ids)
+
+        # Find special token positions
+        special_token_index = (input_ids == special_token_id).nonzero(as_tuple=False).squeeze()
+        device = hidden_states.device
+
+        # Move inserted embeddings to correct device
+        embeddings = [emb[0].to(device) for emb in insert_embedding]
+
+        # Replace embeddings at special token positions
+        for idx, special_idx in enumerate(special_token_index):
+            if idx < len(embeddings):
+                hidden_states[special_idx] = embeddings[idx]
+
+        residual = None
+        # Forward pass through Gemma’s transformer layers
+        for i in range(self.start_layer, self.end_layer):
+            layer = self.layers[i]
+            hidden_states, residual = layer(
+                positions,
+                hidden_states,
+                kv_caches[i - self.start_layer],
+                attn_metadata,
+                residual
+            )
+
+        # Final layer norm
+        hidden_states, _ = self.norm(hidden_states, residual)
+        return hidden_states
+
     # Choose the correct forward function based on model_name
     if model_name == 'llama' or model_name == 'mistral':
         return llama_forward
@@ -160,3 +203,5 @@ def factory(insert_embedding, model_name='llama', special_token_id=128025):
         return qwen_forward
     elif model_name == "multi":
         return llama_forward_multi
+    elif model_name == "gemma":
+        return gemma_forward

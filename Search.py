@@ -9,7 +9,9 @@ from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answ
 from collections import Counter
 from utils.guassian_inference import bayessian_optimisation_torch
 from vllm_run import generate_with_vLLM_model, generate_with_vLLM_model_usually
+from feature_steering import generate_with_SAE_model
 from utils.my_node import NODE
+import sys
 
 def save_tree_to_json(root, filename):
     tree_dict = root.to_dict()
@@ -41,7 +43,7 @@ class Search:
 
         self.model = model
         self.tokenizer = tokenizer
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.args = args
         self.user_prompt = user_prompt
         self.question = question
@@ -360,3 +362,74 @@ class Search:
         with open(self.save_path, 'w', encoding="utf-8") as json_file:
             json.dump(combined_results, json_file, ensure_ascii=False)
         return
+    
+class MyNewSearch(Search):
+    
+    def get_random_embedding_gaussian(self):
+        args = self.args
+        token_list = []
+        for i in range(args.num_tokens):
+            X_train = torch.randn(1, args.dimention)
+            self.x_train_list.append(X_train)
+            token_list.append(X_train)
+        return token_list, X_train
+
+    def collect_x_train_and_rewards(self, root_node):
+        reward_list = []
+        x_train = torch.cat(self.x_train_list, dim=0)
+        reward = torch.tensor(self.reward_list, dtype=torch.float32, device=x_train.device).view(-1, 1)
+
+        with torch.no_grad():
+            top_5_points = bayessian_optimisation_torch(x_train, reward, self.args.dimention, self.args.num_repeats, self.args.function_method, self.args.ucb_beta)
+            X_new = torch.mm(top_5_points, self.A)
+        top_5_points_list = [point.view(1, -1) for point in top_5_points]
+        self.x_train_list += top_5_points_list
+        X_new_list = [new_point.view(1, -1) for new_point in X_new]
+
+        return X_new_list, top_5_points_list
+
+    def _expand_child(self, node):
+        if node.parent is None:
+            for _ in range(self.num_repeats):
+                guide_embedding, x_train = self.get_random_embedding_gaussian()
+                node.children.append(NODE(guide_embedding=guide_embedding, parent=node, x_train = x_train))
+        else:
+            guide_embeddings, x_trains = self.collect_x_train_and_rewards(self.root)
+            for i in range(self.num_repeats):
+                node.children.append(NODE(guide_embedding=[guide_embeddings[i]], parent=node, x_train = x_trains[i]))
+
+        answer_list = []
+        new_nodes = [child for child in node.children if child.model_answer is None]
+        guide_embedding = [node.guide_embedding for node in new_nodes]
+
+
+        
+        output_except_prompt,prob_scores = generate_with_SAE_model(self.x_train_list[-5:], model=self.model, input=self.user_prompt,
+                                                        temperature=0, n=self.args.num_repeats,
+                                                        stop=["Question:\n", 'Here are some examples:', "Final Answer:",
+                                                              "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
+        for repeat, child in enumerate(new_nodes):
+            child.question = self.question
+            child.model_answer = output_except_prompt[repeat]
+            child.cot_answer = get_cot_answer(child.model_answer)
+            child.clean_answer = get_clean_answer(self.args, child.cot_answer)
+            child.is_true = evaluate_answer(self.args, child.clean_answer, self.answer)
+            child.standard_answer = self.answer
+            child.prob_score = prob_scores[repeat]
+            print("_" * 80 + "\n")
+            print(child.cot_answer)
+            answer_list.append(child.clean_answer)
+
+        # calculate reward
+        total = len(answer_list)
+        probability_dict = {item: count / total for item, count in Counter(answer_list).items()}
+        self.verifier(node, new_nodes)
+        for child in new_nodes:
+            child.reward +=  self.args.for_verifier * child.is_verified_true + self.args.for_coherence * child.prob_score
+            self.reward_list.append(child.reward)
+            child.consistency = probability_dict[child.clean_answer]
+        # print([child.reward for child in new_nodes])
+
+        return
+
+        

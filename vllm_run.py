@@ -13,7 +13,9 @@ def load_vLLM_model(model_ckpt, seed, tensor_parallel_size=1):
         tensor_parallel_size=tensor_parallel_size,
         seed=seed,
         trust_remote_code=True,
-        gpu_memory_utilization=0.8,
+        gpu_memory_utilization=0.5,
+        max_model_len=4096
+        # max_seq_len=4096,
         # disable_log_stats=False,
     )
     return tokenizer, llm
