@@ -1,59 +1,26 @@
 # Standard imports
 import random
 import os
-# from evaluate_agent import evaluate_agent
-
+import math
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# from transformer_lens.hook_points import HookPoint
-# from IPython.display import IFrame
-# import json
-# import requests
+from typing import List
 import torch
-# from tqdm import tqdm
-# import plotly.express as px
-# import pandas as pd
-# import metrics.Information_Entropy
+from transformer_lens import HookedTransformer
+from sae_lens import SAE
+from vllm import LLM, SamplingParams
 import torch
 from accelerate import Accelerator
-import numpy as np
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from tqdm.auto import tqdm
-# from transformer_lens import ActivationCache, HookedTransformer, utils
-# import shap
-from typing import List
-# import matplotlib.pyplot as plt
-# from IPython.core.display import HTML
-# from datasets import load_dataset
+from typing import List, Tuple
 import re
-import time
-from transformers.utils import logging
-import logging
+import torch.nn.functional as F
 from functools import partial
-# import metrics.n_gram
-# import metrics.Information_Entropy
-# from jaxtyping import Float, Int
-from torch import Tensor
-# from rich.table import Table
-# from rich import print as rprint
-# from sae_lens.toolkit.pretrained_saes_directory import get_pretrained_saes_directory
 from sae_lens import SAE, HookedSAETransformer
 import argparse
-# from evaluate import load
 
 torch.set_grad_enabled(False)
-
-# if torch.backends.mps.is_available():
-#     device = "mps"
-# else:
-#     device = "cuda" if torch.cuda.is_available() else "cpu"
-# print(f"Device: {device}")
-
-# feature_id = [] 
-# df = pd.DataFrame.from_records({k:v.__dict__ for k,v in get_pretrained_saes_directory().items()}).T
-# df.drop(columns=["expected_var_explained", "expected_l0", "config_overrides", "conversion_func"], inplace=True)
-
 
 torch.cuda.empty_cache()
 accelerator = Accelerator()
@@ -155,7 +122,6 @@ def generate_with_steering(
     output_edited = output.split("\n", 1)[-1].strip()
     return output_edited
 
-
 def my_generate_with_steering(
     weights,
     model: HookedSAETransformer,
@@ -187,7 +153,6 @@ def my_generate_with_steering(
     return outputs
 
 def duc(model_path, dataset, save_path):
-
     # Model Preparation
     if 'gpt' in model_path:
         llm = HookedSAETransformer.from_pretrained('gpt2', device = device)
@@ -252,8 +217,35 @@ def duc(model_path, dataset, save_path):
             }
             f_out.write(json.dumps(result, ensure_ascii=False)+'\n')
 
+def hooked_generate(prompt_batch, fwd_hooks=[], seed=None, **kwargs):
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    with model.hooks(fwd_hooks=fwd_hooks):
+        tokenized = model.to_tokens(prompt_batch)
+        result = model.generate(
+            stop_at_eos=False,  # avoids a bug on MPS
+            input=tokenized,
+            max_new_tokens=50,
+            do_sample=True,
+            **kwargs,
+        )
+    return result
+
+def run_generate(example_prompt):
+    model.reset_hooks()
+    editing_hooks = [(f"blocks.{layer}.hook_resid_post", steering_hook)]
+    res = hooked_generate(
+        [example_prompt] * 3, editing_hooks, seed=None, **sampling_kwargs
+    )
+
+    # Print results, removing the ugly beginning of sequence token
+    res_str = model.to_string(res[:, 1:])
+    print(("\n\n" + "-" * 80 + "\n\n").join(res_str))
 
 def generate_with_SAE_model(
+        sae_model, 
+        sae,
         weights, 
         model,
         input,
@@ -267,50 +259,150 @@ def generate_with_SAE_model(
         stop=[],
         insert_embedding=None,
         model_name="llama",
-        special_token_id=128025
+        special_token_id=128025, 
+        seed = None,
 
     ):
+    print(weights)
+    # sys.exit()
     GENERATE_KWARGS = dict(
         temperature=temperature,
         top_p=top_p,
         top_k=top_k,
-        n=5,
-        logprobs=1,
-        max_tokens=max_tokens,
-        stop=stop,
-    )
-    print('we reached here somehow')
-
-    llm = HookedSAETransformer.from_pretrained_no_processing('google/gemma-2-2b', torch_dtype=torch.float16, device = 'cuda:1')
-    tokenizer = AutoTokenizer.from_pretrained('google/gemma-2-2b')
-    sae, cfg_dict, sparsity = SAE.from_pretrained(
-        release="gemma-scope-2b-pt-res-canonical",  # <- Release name
-        sae_id="layer_25/width_16k/canonical",  # <- SAE id (not always a hook point!)
-        device = 'cuda:1'
+        eos_token_id = [9413],
+        stop_at_eos=True, 
+        max_new_tokens=max_tokens,
+        return_type='embeds'
     )
     latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
                     8911,  3168, 11655,  4120, 14037]
+    coeff = 300
+    def steering_hook(resid, hook):
+        
+        SAE_vectors = sae.W_dec[latent_idxs]
+        
+        for idx in range(resid.size()[0]):
+        
+            weighted_SAE_vectors = weights[idx][0].to('cuda:1') @ SAE_vectors 
+        
+            scaling_factor = torch.linalg.norm(resid[idx])/torch.linalg.norm(resid[idx]+(weighted_SAE_vectors))
+            resid[idx] = (resid[idx]+(weighted_SAE_vectors))*scaling_factor*coeff
 
-    steered_output= my_generate_with_steering(
-                weights,
-                llm,
-                tokenizer,
-                sae,
-                input,
-                latent_idxs,
-                GENERATE_KWARGS
-            )
-    print('here')
+        return resid
+    if seed is not None:
+        torch.manual_seed(seed)
+    
+    hook_point = f"blocks.{25}.hook_resid_post"
+    # sae_model.reset_hooks()
+    editing_hooks = [(hook_point, steering_hook)]
+    with sae_model.hooks(fwd_hooks=editing_hooks):
+        tokenized = sae_model.to_tokens(input)
+        output = sae_model.generate(
+            input=tokenized,
+            do_sample=True,
+            **GENERATE_KWARGS,
+        )
 
-    io_output_list = []
-    prob_list = []
-    for i in range(5):
-        io_output_list.append(output[i].outputs[0].text)
-        logprob_list = [list(token.values())[0].logprob for token in output[i].outputs[0].logprobs]
-        probabilities = [math.exp(logprob) for logprob in logprob_list]
-        average_probability = sum(probabilities) / len(probabilities)
-        prob_list.append(average_probability)
-    return io_output_list, prob_list
+    logits = output @ sae_model.W_U + sae_model.b_U  # [1, seq_len, vocab_size]
+    print(logits.size())
+    def logits_to_text_and_prob(
+        logits: torch.Tensor,
+        model: HookedTransformer
+        ) -> List[Tuple[str, float]]:
+        logits = logits.cpu()
+        probs = F.softmax(logits, dim=-1)
+
+        max_probs, token_ids = torch.max(probs, dim=-1)
+
+        seq_probs = torch.prod(max_probs, dim=-1)
+
+        texts = model.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+
+
+        probs = [pr.item() for pr in seq_probs]
+        variances = logits.var(dim=(1, 2))
+        print(variances)
+        min_val, max_val = variances.min(), variances.max()
+        normalized = (variances - min_val) / (max_val - min_val + 1e-8)
+        normalized = [v.item() for v in normalized]
+        return texts, normalized
+    return logits_to_text_and_prob(logits, sae_model)
+
+
+def generate_with_SAE_model_v2(
+        sae_model, 
+        sae,
+        weights, 
+        model,
+        input,
+        temperature=0.8,
+        top_p=1,
+        top_k=50,
+        n=5,
+        max_tokens=200,
+        stop=[],
+        insert_embedding=None,
+        model_name="llama",
+        special_token_id=128025, 
+        seed = None,
+
+    ):
+    # print(weights)
+
+    GENERATE_KWARGS = dict(
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        eos_token_id = [9413],
+        stop_at_eos=True, 
+        max_new_tokens=max_tokens,
+        return_type='embeds'
+    )
+    
+    latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
+                    8911,  3168, 11655,  4120, 14037]
+    # static_weights = [ 476.3905, 297.6617, 267.0218, 227.5295, 187.9083, 186.5379, 286.9755,
+    #             154.5167, 179.0570, 142.9292, 133.2771, 118.7599, 104.7732, 104.6720,
+    #             93.7085]
+    # static_weights = [weight/max(static_weights) for weight in static_weights]
+    # print(static_weights)
+    
+    def patch_resid(resid, hook, steering, scale=320):
+        adjusted = resid + steering * scale
+        noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
+        resid = adjusted*noramlization_factor
+        return resid
+    
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    SAE_vectors = sae[0].W_dec[latent_idxs]
+    hook_point = f"blocks.{25}.hook_resid_post"
+    tokenized = sae_model.to_tokens(input)
+
+
+    weighted_SAE_vectors = torch.stack([
+        weight[0].to('cuda:1') @ SAE_vectors for weight in weights
+    ]).unsqueeze(1)
+
+    # weighted_SAE_vectors = torch.stack([
+    #     torch.tensor(static_weights).to('cuda:1') @ SAE_vectors for _ in range(5)
+    # ]).unsqueeze(1)
+
+    with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=12))]):
+        output = sae_model.generate(   
+                                    tokenized,
+                                    do_sample=True,
+                                    **GENERATE_KWARGS,
+                                    )
+
+            
+    texts = [sae_model.tokenizer.decode(out) for out in output] 
+    probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts]
+
+    return texts, probs
+
+
 
 
 def main():

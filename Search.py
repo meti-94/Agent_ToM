@@ -9,9 +9,11 @@ from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answ
 from collections import Counter
 from utils.guassian_inference import bayessian_optimisation_torch
 from vllm_run import generate_with_vLLM_model, generate_with_vLLM_model_usually
-from feature_steering import generate_with_SAE_model
+from feature_steering import generate_with_SAE_model, generate_with_SAE_model_v2
 from utils.my_node import NODE
+import traceback
 import sys
+
 
 def save_tree_to_json(root, filename):
     tree_dict = root.to_dict()
@@ -152,12 +154,19 @@ class Search:
     def verifier(self, node, node_list):
         filter_node_list = [node for node in node_list if node.clean_answer is not None]
         eva_prompt,thought_list = self.generate_evaluate_prompt( filter_node_list)
+        # print(eva_prompt)
+        # print('%'*100)
         print("_" * 40 + "verifier" + "_" * 40)
         output_except_prompt = generate_with_vLLM_model_usually(model=self.model, input=eva_prompt, max_tokens=self.args.max_new_tokens, temperature=0, n=1,stop = ["Question:\n",'Here are some examples:',"Final Answer:","Please let me"])[0]
+        print('%'*100)
+        print(output_except_prompt)
+        print('%'*100)
+        # sys.exit()
         try:
             layer_answer = output_except_prompt.split('Here are some examples:')[0].split('Question')[0].split('Final Answer:')[0].split('Please let me')[0]
             layer_answer = layer_answer.split('Question:')[0].strip()
-            layer_clean_answer = layer_answer.split('Answer:')[1].strip()
+
+            layer_clean_answer = output_except_prompt.split('Answer:')[1].strip()
             if self.args.dataset != "strategyqa":
                 layer_clean_answer = str(get_number(layer_clean_answer))
             else:
@@ -170,7 +179,8 @@ class Search:
             self.verifier_analysis.append(layer_answer)
             for remove_char in [',', '$', '%', 'g']:
                 layer_clean_answer = layer_clean_answer.replace(remove_char, '')
-        except:
+        except Exception:
+            print(f"An error occurred: {traceback.print_exc()}")
             layer_clean_answer = "-9999"
         print(layer_clean_answer)
         result = evaluate_answer(self.args, layer_clean_answer, self.answer)
@@ -267,6 +277,9 @@ class Search:
                                                         temperature=0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",
                                                               "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
+        print(output_except_prompt, prob_scores)
+        print('&'*10)
+        
         for repeat, child in enumerate(new_nodes):
             child.question = self.question
             child.model_answer = output_except_prompt[repeat]
@@ -364,12 +377,21 @@ class Search:
         return
     
 class MyNewSearch(Search):
-    
+    def __init__(self, sae_model, sae, *args, **kwargs):
+        self.sae_model = sae_model
+        self.sae = sae
+        super().__init__(*args, **kwargs)
+
+
     def get_random_embedding_gaussian(self):
         args = self.args
         token_list = []
         for i in range(args.num_tokens):
-            X_train = torch.randn(1, args.dimention)
+            # X_train = torch.randn(1, args.dimention) 
+
+            X_train = torch.randn(1, args.dimention)  # Original tensor with random values
+            X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
+
             self.x_train_list.append(X_train)
             token_list.append(X_train)
         return token_list, X_train
@@ -404,10 +426,17 @@ class MyNewSearch(Search):
 
 
         
-        output_except_prompt,prob_scores = generate_with_SAE_model(self.x_train_list[-5:], model=self.model, input=self.user_prompt,
+        output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
                                                         temperature=0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",
                                                               "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
+        
+        output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').strip() for item in output_except_prompt]
+
+        
+
+        print(output_except_prompt, prob_scores)
+        print('&'*10)
         for repeat, child in enumerate(new_nodes):
             child.question = self.question
             child.model_answer = output_except_prompt[repeat]

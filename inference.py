@@ -1,5 +1,6 @@
 import os
-os.environ['HF_HOME'] = '/srv/scratch/CRUISE/Mehdi/HF'
+os.environ['HF_HOME'] = '/mnt/datadisk/Mehdi'
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 import sys
 import argparse
@@ -15,7 +16,9 @@ from Search import Search, MyNewSearch
 from vllm_run import load_vLLM_model, generate_with_vLLM_model
 from utils.gpu_tools import GPUMonitor
 from utils.my_node import set_model_args
-from evaluate import check_answer
+from local_evaluate import check_answer
+from transformer_lens import HookedTransformer
+from sae_lens import SAE
 
 prompt_path = os.path.join(os.getcwd(), "prompts.yaml")
 with open(prompt_path, 'r') as f:
@@ -86,12 +89,12 @@ def insert_reserved_token(args, string):
 def main(args):
     tokenizer, model = load_vLLM_model(args.model_name, seed=args.seed, tensor_parallel_size=args.num_gpu)
     
-    # sys.exit()
-    # # gpu_monitor = GPUMonitor(model, interval=1.0)
-    # # gpu_monitor.start()
-
-    # # atexit.register(gpu_monitor.stop)
-    # # atexit.register(gpu_monitor.report)
+    sae_model = HookedTransformer.from_pretrained("google/gemma-2-2b", device='cuda:1')
+    sae = SAE.from_pretrained(
+                    release="gemma-scope-2b-pt-res-canonical",  # <- Release name
+                    sae_id="layer_25/width_16k/canonical",  # <- SAE id (not always a hook point!)
+                    device = 'cuda:1'
+                )
 
     if args.json_file_path is None:
         raise ValueError("json_file_path must be specified")
@@ -125,9 +128,13 @@ def main(args):
                 question_prompt += f"Question:\n{demo['Question']}\nThought:\n{demo['Thought']}\nAnswer:\n{demo['Answer']}\n\n"
             question_prompt += f"Question:\n{question}\nThought:\nLet’s think step by step. "
 
+        # print(question_prompt)
         question_prompt_list = insert_reserved_token(args, question_prompt)
-
+ 
+        
         Search_agent = MyNewSearch(
+            sae_model,
+            sae, 
             model=model,
             tokenizer=tokenizer,
             args=args,
@@ -145,6 +152,28 @@ def main(args):
             save_path =  os.path.join(args.output_path,'{}.json'.format(index))
         )
         Search_agent()
+
+        ###################
+
+        
+        # Search_agent = Search(
+        #     model=model,
+        #     tokenizer=tokenizer,
+        #     args=args,
+        #     user_prompt = question_prompt_list,
+        #     question=question,
+        #     answer=answer,
+        #     verify_prompt=prompts_from_file[args.dataset.replace("_train", "")],
+        #     num_repeats=args.num_repeats,
+        #     depth_limit=args.depth_limit,
+        #     n_iters=args.num_iteration,
+        #     calc_q=np.mean,
+        #     simulate_strategy='max',
+        #     output_strategy='max_reward',
+        #     disable_tqdm=True,
+        #     save_path =  os.path.join(args.output_path,'{}.json'.format(index))
+        # )
+        # Search_agent()
 
 
 
@@ -215,3 +244,4 @@ if __name__ == "__main__":
     save_config(args)
     main(args)
     check_answer(args.output_path)
+    # check_answer('/home/mahdi/Agent_ToM/output/gsm8k/gemma-2-2b/23_060151')
