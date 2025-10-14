@@ -353,20 +353,32 @@ def generate_with_SAE_model_v2(
         temperature=temperature,
         top_p=top_p,
         top_k=top_k,
-        eos_token_id = [9413],
+        eos_token_id = [[14924], [128001]], # [9413], this was for gemma 
         stop_at_eos=True, 
         max_new_tokens=max_tokens,
         return_type='embeds'
     )
     
-    latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
-                    8911,  3168, 11655,  4120, 14037]
+    # latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
+    #                 8911,  3168, 11655,  4120, 14037]
+    
+    #this one is negative ones 
+    latent_idxs = [14325, 15298, 15920,  8657, 14651, 15645,  5299,  1689,  6481, 10572,
+         9964, 14186,    39, 15820, 12028]
+    # this is for llama 3.1 - 31
+    latent_idxs = [ 51079,  65620,  97403,  82437,  72031, 111072, 108025, 107403, 106671,
+        115855,  68092,  96301,   5103, 118333,  32333]
+    
+    # this is for llama 3.1 - 28 
+    latent_idxs = [ 32632,  15130,  48831,  29266,  63922,  72831,  96414,  94689,  34397,
+        125985,  28217,  58214,  24499,  55691,  49146]
+    print(weights)
     # static_weights = [ 476.3905, 297.6617, 267.0218, 227.5295, 187.9083, 186.5379, 286.9755,
     #             154.5167, 179.0570, 142.9292, 133.2771, 118.7599, 104.7732, 104.6720,
     #             93.7085]
     # static_weights = [weight/max(static_weights) for weight in static_weights]
     # print(static_weights)
-    
+    # input = [i.replace('<|reserved_special_token_20|>', '') for i in input]
     def patch_resid(resid, hook, steering, scale=320):
         adjusted = resid + steering * scale
         noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
@@ -377,19 +389,19 @@ def generate_with_SAE_model_v2(
         torch.manual_seed(seed)
 
     SAE_vectors = sae[0].W_dec[latent_idxs]
-    hook_point = f"blocks.{25}.hook_resid_post"
+    hook_point = f"blocks.{28}.hook_resid_post"
     tokenized = sae_model.to_tokens(input)
-
-
+    # print(input[0])
+    # print(SAE_vectors.dtype,  weights[0][0].to('cuda:1').dtype)
     weighted_SAE_vectors = torch.stack([
-        weight[0].to('cuda:1') @ SAE_vectors for weight in weights
+        weight[0].to('cuda:1').to(SAE_vectors.dtype) @ SAE_vectors for weight in weights
     ]).unsqueeze(1)
 
     # weighted_SAE_vectors = torch.stack([
     #     torch.tensor(static_weights).to('cuda:1') @ SAE_vectors for _ in range(5)
     # ]).unsqueeze(1)
 
-    with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=12))]):
+    with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=4))]): # 12 is a good retio for gemma 2 2b 
         output = sae_model.generate(   
                                     tokenized,
                                     do_sample=True,
@@ -398,7 +410,8 @@ def generate_with_SAE_model_v2(
 
             
     texts = [sae_model.tokenizer.decode(out) for out in output] 
-    probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts]
+    # probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts] # gemma 
+    probs = [1-(txt.count('<|end_of_text|>')/(txt.count('<|end_of_text|>')+len(txt.split(' ')))) for txt in texts] # llama 
 
     return texts, probs
 

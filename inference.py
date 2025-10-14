@@ -89,12 +89,17 @@ def insert_reserved_token(args, string):
 def main(args):
     tokenizer, model = load_vLLM_model(args.model_name, seed=args.seed, tensor_parallel_size=args.num_gpu)
     
-    sae_model = HookedTransformer.from_pretrained("google/gemma-2-2b", device='cuda:1')
-    sae = SAE.from_pretrained(
-                    release="gemma-scope-2b-pt-res-canonical",  # <- Release name
-                    sae_id="layer_25/width_16k/canonical",  # <- SAE id (not always a hook point!)
-                    device = 'cuda:1'
-                )
+    # sae_model = HookedTransformer.from_pretrained("google/gemma-2-2b", device='cuda:1')
+    # sae = SAE.from_pretrained(
+    #                 release="gemma-scope-2b-pt-res-canonical",  # <- Release name
+    #                 sae_id="layer_25/width_16k/canonical",  # <- SAE id (not always a hook point!)
+    #                 device = 'cuda:1'
+    #             )
+
+    sae_model = HookedTransformer.from_pretrained("meta-llama/Llama-3.1-8B", device='cuda:1')
+    release = "llama_scope_lxr_32x"
+    sae_id = "l28r_32x"
+    sae = SAE.from_pretrained(release, sae_id, device = 'cuda:1')
 
     if args.json_file_path is None:
         raise ValueError("json_file_path must be specified")
@@ -215,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument('--for_verifier', type=int, default=1,help='Whether to include verifier information in the reward (1: include, 0: exclude).')
     parser.add_argument('--for_coherence', type=int, default=1,help='Whether to include coherence information in the reward (1: include, 0: exclude).')
     parser.add_argument('--function_method', type=str, default="ei",help='Expected function selection for Bayesian optimization (e.g., "ei", "ucb").')
-    parser.add_argument('--ucb_beta', type=float, default=2.0,help='Beta parameter for UCB if Upper Confidence Bound is used as acquisition function.')
+    parser.add_argument('--ucb_beta', type=float, default=2.0,help='Beta parameter for UCB if Upper Confidence Bound is used as acquisition function.') # 4.5 is good 
     parser.add_argument('--num_gpu', type=int, default=1, help='Number of GPUs to use.')
 
     args = parser.parse_args()

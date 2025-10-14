@@ -425,13 +425,14 @@ class MyNewSearch(Search):
         guide_embedding = [node.guide_embedding for node in new_nodes]
 
 
-        
+        # print(self.user_prompt[0])
         output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
-                                                        temperature=0, n=self.args.num_repeats,
+                                                        temperature=0.0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",
                                                               "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
         
-        output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').strip() for item in output_except_prompt]
+        # output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').split('\n\n')[0].strip() for item in output_except_prompt]
+        output_except_prompt = [item.split("<|reserved_special_token_20|>")[-1].split('Question')[0].strip() for item in output_except_prompt]
 
         
 
