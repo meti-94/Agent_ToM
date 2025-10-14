@@ -19,6 +19,8 @@ import torch.nn.functional as F
 from functools import partial
 from sae_lens import SAE, HookedSAETransformer
 import argparse
+import inspect
+from collections import Counter
 
 torch.set_grad_enabled(False)
 
@@ -302,7 +304,7 @@ def generate_with_SAE_model(
             do_sample=True,
             **GENERATE_KWARGS,
         )
-
+    print(inspect.signature(sae_model.generate))
     logits = output @ sae_model.W_U + sae_model.b_U  # [1, seq_len, vocab_size]
     print(logits.size())
     def logits_to_text_and_prob(
@@ -356,7 +358,7 @@ def generate_with_SAE_model_v2(
         eos_token_id = [[14924], [128001]], # [9413], this was for gemma 
         stop_at_eos=True, 
         max_new_tokens=max_tokens,
-        return_type='embeds'
+        # return_type='logits'
     )
     
     # latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
@@ -405,14 +407,26 @@ def generate_with_SAE_model_v2(
         output = sae_model.generate(   
                                     tokenized,
                                     do_sample=True,
+                                    # return_type='logits',
                                     **GENERATE_KWARGS,
                                     )
 
-            
+    # print(type(output), output.size())   
+    # sys.exit()     
     texts = [sae_model.tokenizer.decode(out) for out in output] 
-    # probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts] # gemma 
-    probs = [1-(txt.count('<|end_of_text|>')/(txt.count('<|end_of_text|>')+len(txt.split(' ')))) for txt in texts] # llama 
 
+    # probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts] # gemma 
+    # probs = [1-(txt.count('<|end_of_text|>')/(txt.count('<|end_of_text|>')+len(txt.split(' ')))) for txt in texts] # llama 
+    def most_frequent_word_ratio(text: str) -> float:
+        words = text.split(' ')
+        if words == []:
+            return 0.0
+        
+        counts = Counter(words)
+        most_common_count = max(counts.values())
+        total_words = len(words)
+        return most_common_count / total_words
+    probs = [1-most_frequent_word_ratio(txt) for txt in texts]
     return texts, probs
 
 

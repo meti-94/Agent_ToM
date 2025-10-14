@@ -19,6 +19,7 @@ from utils.my_node import set_model_args
 from local_evaluate import check_answer
 from transformer_lens import HookedTransformer
 from sae_lens import SAE
+import inspect 
 
 prompt_path = os.path.join(os.getcwd(), "prompts.yaml")
 with open(prompt_path, 'r') as f:
@@ -97,6 +98,7 @@ def main(args):
     #             )
 
     sae_model = HookedTransformer.from_pretrained("meta-llama/Llama-3.1-8B", device='cuda:1')
+    print(inspect.signature(sae_model.generate))
     release = "llama_scope_lxr_32x"
     sae_id = "l28r_32x"
     sae = SAE.from_pretrained(release, sae_id, device = 'cuda:1')
