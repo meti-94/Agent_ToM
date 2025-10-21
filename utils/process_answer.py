@@ -92,3 +92,45 @@ def evaluate_answer(args, string, number_to_compare, tolerance=0.01):
         if abs(numbers_in_string - number_to_compare) <= tolerance:
             return True
     return False
+
+
+def parse_llm_response(args, raw_responses_list):
+    def instruction_following_score(input_text):
+        score = 0
+        if input_text.find('Answer:')!=-1:
+            score += .5
+        if not input_text.startswith('Answer'):
+            score += .5
+        return score
+    
+    if "google/gemma-2-2b" in args.model_name.lower():
+        final_responses = []
+        scores = []
+        for response in raw_responses_list:
+            # print(response)
+            start = response.find('<unused1>')
+            end = response.find('<end_of_turn>')
+            final_responses.append(response[start+9:end].replace('<eos>', '').strip())
+            # print(final_responses)
+            scores.append(instruction_following_score(final_responses[-1]))
+    if "meta-llama/llama-3.1-8b" in args.model_name.lower():
+        final_responses = []
+        scores = []
+        for response in raw_responses_list:
+            temp = response.split('<|reserved_special_token_20|>')[1].split('Question')[0].replace('<|end_of_text|>', '').strip()
+            final_responses.append(temp)
+            scores.append(instruction_following_score(final_responses[-1]))
+    if args.model_name=="mistralai/Mistral-7B-Instruct-v0.1":
+        
+        final_responses = []
+        scores = []
+        for response in raw_responses_list:
+            temp = response.split('[control_760]')[1].replace('</s>', '').strip()
+            final_responses.append(temp)
+            scores.append(instruction_following_score(final_responses[-1]))
+    return final_responses, scores
+
+
+    
+    # output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').split('\n\n')[0].strip() for item in output_except_prompt] # Gemma 
+    # # output_except_prompt = [item.split("<|reserved_special_token_20|>")[-1].split('Question')[0].strip() for item in output_except_prompt] # LLama 

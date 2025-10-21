@@ -20,6 +20,7 @@ from local_evaluate import check_answer
 from transformer_lens import HookedTransformer
 from sae_lens import SAE
 import inspect 
+from feature_sensitivity_cache import build_cache_paths, load_indices_json
 
 prompt_path = os.path.join(os.getcwd(), "prompts.yaml")
 with open(prompt_path, 'r') as f:
@@ -88,21 +89,8 @@ def insert_reserved_token(args, string):
 
 
 def main(args):
+    sae_model=None
     tokenizer, model = load_vLLM_model(args.model_name, seed=args.seed, tensor_parallel_size=args.num_gpu)
-    
-    # sae_model = HookedTransformer.from_pretrained("google/gemma-2-2b", device='cuda:1')
-    # sae = SAE.from_pretrained(
-    #                 release="gemma-scope-2b-pt-res-canonical",  # <- Release name
-    #                 sae_id="layer_25/width_16k/canonical",  # <- SAE id (not always a hook point!)
-    #                 device = 'cuda:1'
-    #             )
-
-    sae_model = HookedTransformer.from_pretrained("meta-llama/Llama-3.1-8B", device='cuda:1')
-    print(inspect.signature(sae_model.generate))
-    release = "llama_scope_lxr_32x"
-    sae_id = "l28r_32x"
-    sae = SAE.from_pretrained(release, sae_id, device = 'cuda:1')
-
     if args.json_file_path is None:
         raise ValueError("json_file_path must be specified")
     with open(args.json_file_path, 'r', encoding="utf-8") as file:
@@ -137,55 +125,77 @@ def main(args):
 
         # print(question_prompt)
         question_prompt_list = insert_reserved_token(args, question_prompt)
- 
-        
-        Search_agent = MyNewSearch(
-            sae_model,
-            sae, 
-            model=model,
-            tokenizer=tokenizer,
-            args=args,
-            user_prompt = question_prompt_list,
-            question=question,
-            answer=answer,
-            verify_prompt=prompts_from_file[args.dataset.replace("_train", "")],
-            num_repeats=args.num_repeats,
-            depth_limit=args.depth_limit,
-            n_iters=args.num_iteration,
-            calc_q=np.mean,
-            simulate_strategy='max',
-            output_strategy='max_reward',
-            disable_tqdm=True,
-            save_path =  os.path.join(args.output_path,'{}.json'.format(index))
-        )
-        Search_agent()
+
+        if args.search_algo=='sae':
+            # cached = load_indices_json(args.cache_file)
+            # top_k_indices = cached.get("top_k_indices", [])
+            
+            if sae_model==None:
+                print(f"[CACHE HIT] Loaded top-k indices from:\n  {args.cache_file}")
+                sae_model = HookedTransformer.from_pretrained(args.sae_base_model, device=args.sae_device)
+                sae = SAE.from_pretrained(args.release, args.hook_point, device = 'cuda:1')
+            Search_agent = MyNewSearch(
+                sae_model,
+                sae, 
+                model=model,
+                tokenizer=tokenizer,
+                args=args,
+                user_prompt = question_prompt_list,
+                question=question,
+                answer=answer,
+                verify_prompt=prompts_from_file[args.dataset.replace("_train", "")],
+                num_repeats=args.num_repeats,
+                depth_limit=args.depth_limit,
+                n_iters=args.num_iteration,
+                calc_q=np.mean,
+                simulate_strategy='max',
+                output_strategy='max_reward',
+                disable_tqdm=True,
+                save_path =  os.path.join(args.output_path,'{}.json'.format(index))
+            )
+            Search_agent()
 
         ###################
-
-        
-        # Search_agent = Search(
-        #     model=model,
-        #     tokenizer=tokenizer,
-        #     args=args,
-        #     user_prompt = question_prompt_list,
-        #     question=question,
-        #     answer=answer,
-        #     verify_prompt=prompts_from_file[args.dataset.replace("_train", "")],
-        #     num_repeats=args.num_repeats,
-        #     depth_limit=args.depth_limit,
-        #     n_iters=args.num_iteration,
-        #     calc_q=np.mean,
-        #     simulate_strategy='max',
-        #     output_strategy='max_reward',
-        #     disable_tqdm=True,
-        #     save_path =  os.path.join(args.output_path,'{}.json'.format(index))
-        # )
-        # Search_agent()
+        if args.search_algo=='soft_reasoning':
+            Search_agent = Search(
+                model=model,
+                tokenizer=tokenizer,
+                args=args,
+                user_prompt = question_prompt_list,
+                question=question,
+                answer=answer,
+                verify_prompt=prompts_from_file[args.dataset.replace("_train", "")],
+                num_repeats=args.num_repeats,
+                depth_limit=args.depth_limit,
+                n_iters=args.num_iteration,
+                calc_q=np.mean,
+                simulate_strategy='max',
+                output_strategy='max_reward',
+                disable_tqdm=True,
+                save_path =  os.path.join(args.output_path,'{}.json'.format(index))
+            )
+            Search_agent()
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Text generation script using a pretrained model.")
+
+
+    # NEW: Search algorithm selector
+    parser.add_argument(
+        '--search_algo',
+        type=str,
+        default='sae',
+        choices=[
+            'soft_reasoning', 'sae'
+        ],
+        help=(
+            'Search algorithm to use for decoding / reasoning. '
+        )
+    )
+
+
     parser.add_argument('--model_name', type=str, default="meta-llama/Meta-Llama-3-8B-Instruct",help='Name or path of the model to use (e.g., meta-llama/Meta-Llama-3-8B-Instruct, mistralai/Mistral-7B-Instruct-v0.3, Qwen/Qwen2-7B-Instruct).')
     parser.add_argument('--dataset', type=str, default="gsm8k", help='Dataset name. Options: gsm8k, gsm_hard, strategyqa, svamp, aime_2024, aime_2025.')
     parser.add_argument('--max_new_tokens', type=int, default=300, help='The maximum numbers of tokens to generate')
@@ -224,6 +234,20 @@ if __name__ == "__main__":
     parser.add_argument('--function_method', type=str, default="ei",help='Expected function selection for Bayesian optimization (e.g., "ei", "ucb").')
     parser.add_argument('--ucb_beta', type=float, default=2.0,help='Beta parameter for UCB if Upper Confidence Bound is used as acquisition function.') # 4.5 is good 
     parser.add_argument('--num_gpu', type=int, default=1, help='Number of GPUs to use.')
+
+
+
+    parser.add_argument("--sae_base_model", type=str, default="meta-llama/Llama-3.1-8B", help="Base SAE model.")
+    parser.add_argument("--release", type=str, default="llama_scope_lxr_32x", help="SAE release used when generating cached indices.")
+    parser.add_argument("--hook_point", type=str, default="l28r_32x", help="SAE id/hook point used when generating cached indices.")
+    parser.add_argument("--sae_device", type=str, default="cuda:1", help="Device: 'cpu', 'cuda:0', 'mps', etc.")
+    parser.add_argument("--steering_scale", type=float, default=4.0, help='The scaling (intensity) factor which is applied to the SAE vectors')
+    parser.add_argument("--cache_file", type=str, default="./cache/meta-llama__Llama-3.1-8B/llama_scope_lxr_32x/l28r_32x/763b7c26ea3378a5e7a78903c14f07a7de7edd3c/indices.json", 
+                        help="Path to file where associated indices were saved.")
+    
+    
+
+
 
     args = parser.parse_args()
     set_model_args(args)

@@ -5,11 +5,12 @@ import json
 import numpy as np
 from tqdm import trange
 import torch
-from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answer, get_number
+from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answer, get_number, parse_llm_response
 from collections import Counter
 from utils.guassian_inference import bayessian_optimisation_torch
 from vllm_run import generate_with_vLLM_model, generate_with_vLLM_model_usually
 from feature_steering import generate_with_SAE_model, generate_with_SAE_model_v2
+from feature_sensitivity_cache import load_indices_json
 from utils.my_node import NODE
 import traceback
 import sys
@@ -380,6 +381,7 @@ class MyNewSearch(Search):
     def __init__(self, sae_model, sae, *args, **kwargs):
         self.sae_model = sae_model
         self.sae = sae
+        self.args = args 
         super().__init__(*args, **kwargs)
 
 
@@ -424,15 +426,20 @@ class MyNewSearch(Search):
         new_nodes = [child for child in node.children if child.model_answer is None]
         guide_embedding = [node.guide_embedding for node in new_nodes]
 
-
-        # print(self.user_prompt[0])
-        output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
-                                                        temperature=0.0, n=self.args.num_repeats,
+        cached = load_indices_json(self.args.cache_file)
+        top_k_indices = cached.get("top_k_indices", [])
+        # indices = 
+        output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.args, self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
+                                                        indices=top_k_indices, temperature=0.0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",
                                                               "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
-        
-        # output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').split('\n\n')[0].strip() for item in output_except_prompt]
-        output_except_prompt = [item.split("<|reserved_special_token_20|>")[-1].split('Question')[0].strip() for item in output_except_prompt]
+        # print(output_except_prompt)
+        output_except_prompt, prob_scores = parse_llm_response(self.args, output_except_prompt)
+        # print(output_except_prompt)
+        # sys.exit()
+        # we need a separated parsing strategy for each model 
+        # output_except_prompt = [item.split("Let’s think step by step.")[-1].replace('Question', '').split('\n\n')[0].strip() for item in output_except_prompt] # Gemma 
+        # output_except_prompt = [item.split("<|reserved_special_token_20|>")[-1].split('Question')[0].strip() for item in output_except_prompt] # LLama 
 
         
 

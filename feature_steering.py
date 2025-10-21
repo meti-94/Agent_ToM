@@ -332,11 +332,13 @@ def generate_with_SAE_model(
 
 
 def generate_with_SAE_model_v2(
+        args, 
         sae_model, 
         sae,
         weights, 
         model,
         input,
+        indices,
         temperature=0.8,
         top_p=1,
         top_k=50,
@@ -347,15 +349,18 @@ def generate_with_SAE_model_v2(
         model_name="llama",
         special_token_id=128025, 
         seed = None,
+        
 
     ):
-    # print(weights)
-
+    if args.sae_base_model=='meta-llama/Llama-3.1-8B':
+        stop_at = [[14924], [128001]]
+    if args.sae_base_model=='mistralai/Mistral-7B-Instruct-v0.1':
+        stop_at = []
     GENERATE_KWARGS = dict(
         temperature=temperature,
         top_p=top_p,
         top_k=top_k,
-        eos_token_id = [[14924], [128001]], # [9413], this was for gemma 
+        eos_token_id = stop_at, # [9413], this was for gemma # for llama [14924], [128001]
         stop_at_eos=True, 
         max_new_tokens=max_tokens,
         # return_type='logits'
@@ -365,33 +370,35 @@ def generate_with_SAE_model_v2(
     #                 8911,  3168, 11655,  4120, 14037]
     
     #this one is negative ones 
-    latent_idxs = [14325, 15298, 15920,  8657, 14651, 15645,  5299,  1689,  6481, 10572,
-         9964, 14186,    39, 15820, 12028]
-    # this is for llama 3.1 - 31
-    latent_idxs = [ 51079,  65620,  97403,  82437,  72031, 111072, 108025, 107403, 106671,
-        115855,  68092,  96301,   5103, 118333,  32333]
+    # latent_idxs = [14325, 15298, 15920,  8657, 14651, 15645,  5299,  1689,  6481, 10572,
+    #      9964, 14186,    39, 15820, 12028]
+    # # this is for llama 3.1 - 31
+    # latent_idxs = [ 51079,  65620,  97403,  82437,  72031, 111072, 108025, 107403, 106671,
+    #     115855,  68092,  96301,   5103, 118333,  32333]
     
-    # this is for llama 3.1 - 28 
-    latent_idxs = [ 32632,  15130,  48831,  29266,  63922,  72831,  96414,  94689,  34397,
-        125985,  28217,  58214,  24499,  55691,  49146]
-    print(weights)
+    # # this is for llama 3.1 - 28 
+    # latent_idxs = [ 32632,  15130,  48831,  29266,  63922,  72831,  96414,  94689,  34397,
+    #     125985,  28217,  58214,  24499,  55691,  49146]
+    # print(weights)
     # static_weights = [ 476.3905, 297.6617, 267.0218, 227.5295, 187.9083, 186.5379, 286.9755,
     #             154.5167, 179.0570, 142.9292, 133.2771, 118.7599, 104.7732, 104.6720,
     #             93.7085]
     # static_weights = [weight/max(static_weights) for weight in static_weights]
     # print(static_weights)
     # input = [i.replace('<|reserved_special_token_20|>', '') for i in input]
+    # latent 
     def patch_resid(resid, hook, steering, scale=320):
         adjusted = resid + steering * scale
         noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
         resid = adjusted*noramlization_factor
+        # resid = adjusted
         return resid
     
     if seed is not None:
         torch.manual_seed(seed)
 
-    SAE_vectors = sae[0].W_dec[latent_idxs]
-    hook_point = f"blocks.{28}.hook_resid_post"
+    SAE_vectors = sae[0].W_dec[indices]
+    hook_point = sae[1]['hook_name'] # we need a translation here args.hook_point 
     tokenized = sae_model.to_tokens(input)
     # print(input[0])
     # print(SAE_vectors.dtype,  weights[0][0].to('cuda:1').dtype)
@@ -401,9 +408,9 @@ def generate_with_SAE_model_v2(
 
     # weighted_SAE_vectors = torch.stack([
     #     torch.tensor(static_weights).to('cuda:1') @ SAE_vectors for _ in range(5)
-    # ]).unsqueeze(1)
+    # ]).unsqueeze(1) 5 
 
-    with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=4))]): # 12 is a good retio for gemma 2 2b 
+    with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=args.steering_scale))]): # 15 12 is a good retio for gemma 2 2b 4 is good for llamma 
         output = sae_model.generate(   
                                     tokenized,
                                     do_sample=True,

@@ -227,12 +227,13 @@ def check_answer(directory):
         any_result.append(have_key(tree))
         verify_clean_answer = [process['layer_clean_answer'] for process in eva_processes if 'layer_clean_answer' in process]
         all_clean_answer = collect_node(tree)
-        nodes_spac = collect_spacs(tree)
-        selected_answer = select_answer(nodes_spac)
-        print(selected_answer)
-        v_a_vote_answer = int(evaluate_answer(args, selected_answer, ground_truth))
-        # v_a_vote_answer = int(majority_vote(args, verify_clean_answer+all_clean_answer, ground_truth))
+        v_a_vote_answer = int(majority_vote(args, verify_clean_answer+all_clean_answer, ground_truth))
         v_a_vote += v_a_vote_answer
+        # nodes_spac = collect_spacs(tree)
+        # selected_answer = select_answer(nodes_spac)
+        # print(selected_answer)
+        # v_a_vote_answer = int(evaluate_answer(args, selected_answer, ground_truth))
+        # v_a_vote += v_a_vote_answer
 
     print(f"Any result Accuracy: {np.mean(any_result):.3%}")
     print(f"Accuracy: {v_a_vote / len(file_list):.3%}")
