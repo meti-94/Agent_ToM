@@ -107,25 +107,35 @@ def parse_llm_response(args, raw_responses_list):
         final_responses = []
         scores = []
         for response in raw_responses_list:
-            # print(response)
+            print(response)
             start = response.find('<unused1>')
             end = response.find('<end_of_turn>')
-            final_responses.append(response[start+9:end].replace('<eos>', '').strip())
-            # print(final_responses)
+            final_responses.append(response[start+9:end].replace('<eos>', '').strip('Questio'))
+            print(final_responses)
+            print('---\n')
             scores.append(instruction_following_score(final_responses[-1]))
     if "meta-llama/llama-3.1-8b" in args.model_name.lower():
         final_responses = []
         scores = []
         for response in raw_responses_list:
-            temp = response.split('<|reserved_special_token_20|>')[1].split('Question')[0].replace('<|end_of_text|>', '').strip()
+            try:
+                temp = response.split('Let’s think step by step.')[-1].split('Question')[0].replace('<|end_of_text|>', '').strip()
+            except:
+                temp = response.strip()
+            # print(temp)
             final_responses.append(temp)
             scores.append(instruction_following_score(final_responses[-1]))
     if args.model_name=="mistralai/Mistral-7B-Instruct-v0.1":
-        
         final_responses = []
         scores = []
         for response in raw_responses_list:
-            temp = response.split('[control_760]')[1].replace('</s>', '').strip()
+            # print(response)
+            try:
+                temp = response.split('[control_760]')[1].replace('</s>', '').strip()
+                if len(temp.split('Answer:'))>2:
+                    temp = 'Answer:'.join(temp.split('Answer:')[:2])
+            except:
+                temp = response.replace('</s>', '').strip()
             final_responses.append(temp)
             scores.append(instruction_following_score(final_responses[-1]))
     return final_responses, scores

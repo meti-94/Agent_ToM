@@ -1,2 +1,0 @@
-python inference.py --model_name google/gemma-2-2b --end 20 --dataset gsm8k --shot 4 --dimention 15 --ucb_beta 4.5 --cache_file cache/google__gemma-2-2b/gemma-scope-2b-pt-res-canonical/layer_25__width_16k__canonical/e58a85b6bf439f7dff69e9b1401bcdc11888ff41/indices.json --sae_base_model google/gemma-2-2b --release gemma-scope-2b-pt-res-canonical --hook_point layer_25/width_16k/canonical --f
-unction_method ei

@@ -21,6 +21,7 @@ from sae_lens import SAE, HookedSAETransformer
 import argparse
 import inspect
 from collections import Counter
+from utils.process_answer import parse_llm_response
 
 torch.set_grad_enabled(False)
 
@@ -352,18 +353,21 @@ def generate_with_SAE_model_v2(
         
 
     ):
+    if args.sae_base_model=='google/gemma-2-2b':
+        stop_at = [[9413], [81435], [22804]]
     if args.sae_base_model=='meta-llama/Llama-3.1-8B':
         stop_at = [[14924], [128001]]
     if args.sae_base_model=='mistralai/Mistral-7B-Instruct-v0.1':
         stop_at = []
     GENERATE_KWARGS = dict(
-        temperature=temperature,
+        temperature=0.2, # temperature,
         top_p=top_p,
         top_k=top_k,
         eos_token_id = stop_at, # [9413], this was for gemma # for llama [14924], [128001]
         stop_at_eos=True, 
         max_new_tokens=max_tokens,
-        # return_type='logits'
+        return_type='str',
+        freq_penalty=0.3,
     )
     
     # latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
@@ -408,33 +412,71 @@ def generate_with_SAE_model_v2(
 
     # weighted_SAE_vectors = torch.stack([
     #     torch.tensor(static_weights).to('cuda:1') @ SAE_vectors for _ in range(5)
-    # ]).unsqueeze(1) 5 
-
+    # ]).unsqueeze(1) 
+    
     with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=args.steering_scale))]): # 15 12 is a good retio for gemma 2 2b 4 is good for llamma 
         output = sae_model.generate(   
                                     tokenized,
                                     do_sample=True,
-                                    # return_type='logits',
+                                    # loss_per_token=True,
                                     **GENERATE_KWARGS,
                                     )
+    # logits = output @ sae_model.W_U + sae_model.b_U 
+    # print(sae_model.all_composition_scores('Q'))
+    # print(output)
+    parsed_output, _ = parse_llm_response(args, output)
+    encodings = sae_model.to_tokens(parsed_output)
+    input_ids = encodings.to('cuda:1')
+    with torch.no_grad():
+        logits = sae_model(input_ids, loss_per_token=True)   
+        probs = torch.softmax(logits, dim=-1)
+        token_probs = probs.gather(dim=-1, index=input_ids.unsqueeze(-1)).squeeze(-1)
+        seq_log_probs = torch.log(token_probs).sum(dim=-1)
+        seq_probs = torch.exp(seq_log_probs)
+        perplexity = torch.exp(-seq_log_probs / input_ids.size(1))
+        p_min, p_max = perplexity.min(), perplexity.max()
+        normalized_perplexity = (perplexity - p_min) / (p_max - p_min + 1e-8)
+    normalized_perplexity_list = normalized_perplexity.detach().cpu().tolist()
+    return parsed_output, [1-item for item in normalized_perplexity_list]  
+    # def logits_to_text_and_prob(
+    #     logits: torch.Tensor,
+    #     model: HookedTransformer
+    #     ) -> List[Tuple[str, float]]:
+    #     logits = logits.cpu()
+    #     probs = F.softmax(logits, dim=-1)
 
+    #     max_probs, token_ids = torch.max(probs, dim=-1)
+
+    #     seq_probs = torch.prod(max_probs, dim=-1)
+
+    #     texts = model.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+
+
+    #     probs = [pr.item() for pr in seq_probs]
+    #     variances = logits.var(dim=(1, 2))
+    #     print(variances)
+    #     min_val, max_val = variances.min(), variances.max()
+    #     normalized = (variances - min_val) / (max_val - min_val + 1e-8)
+    #     normalized = [v.item() for v in normalized]
+    #     return texts, normalized
+    # return logits_to_text_and_prob(logits, sae_model)
     # print(type(output), output.size())   
     # sys.exit()     
-    texts = [sae_model.tokenizer.decode(out) for out in output] 
+    # texts = [sae_model.tokenizer.decode(out) for out in output] 
 
     # probs = [1-(txt.count('<eos>')/(txt.count('<eos>')+len(txt.split(' ')))) for txt in texts] # gemma 
     # probs = [1-(txt.count('<|end_of_text|>')/(txt.count('<|end_of_text|>')+len(txt.split(' ')))) for txt in texts] # llama 
-    def most_frequent_word_ratio(text: str) -> float:
-        words = text.split(' ')
-        if words == []:
-            return 0.0
+    # def most_frequent_word_ratio(text: str) -> float:
+    #     words = text.split(' ')
+    #     if words == []:
+    #         return 0.0
         
-        counts = Counter(words)
-        most_common_count = max(counts.values())
-        total_words = len(words)
-        return most_common_count / total_words
-    probs = [1-most_frequent_word_ratio(txt) for txt in texts]
-    return texts, probs
+    #     counts = Counter(words)
+    #     most_common_count = max(counts.values())
+    #     total_words = len(words)
+    #     return most_common_count / total_words
+    # probs = [1-most_frequent_word_ratio(txt) for txt in texts]
+    # return texts, probs
 
 
 

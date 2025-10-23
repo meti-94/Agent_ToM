@@ -14,12 +14,6 @@ import hashlib
 from datetime import datetime
 
 
-# from sae_lens import SAE
-
-# release = "mistral-7b-res-wg"
-# sae_id = "blocks.24.hook_resid_pre"
-# sae = SAE.from_pretrained(release, sae_id)[0]
-
 def sanitize(s: str) -> str:
     """
     Keep it filesystem-safe for directory names only.
@@ -66,10 +60,11 @@ def build_cache_paths(args, cache_root: str):
     return dir_path, file_path
 
 
-def save_indices_json(file_path: str, top_k_indices, top_k_scores=None, meta: dict = None):
+def save_indices_json(file_path: str, top_k_indices, weights, top_k_scores=None, meta: dict = None):
     data = {
         "top_k_indices": [int(i) for i in top_k_indices],  # ensure plain ints for JSON
     }
+    data['static_weights']=weights
     if top_k_scores is not None:
         data["top_k_scores"] = [float(s) for s in top_k_scores]
     if meta is not None:
@@ -163,6 +158,7 @@ def main(args):
     # Prepare JSON-safe outputs and metadata
     top_k_indices_list = top_k_indices.detach().cpu().tolist()
     top_k_scores_list = top_k_scores.detach().cpu().tolist()
+    weights = weights[top_k_indices_list].detach().cpu().tolist()
     meta = {
         "base_model_name": args.base_model_name,
         "release": args.release,
@@ -177,11 +173,11 @@ def main(args):
     }
 
     # Save results to predefined path
-    save_indices_json(cache_file, top_k_indices_list, top_k_scores_list, meta)
+    save_indices_json(cache_file, top_k_indices_list, weights, top_k_scores_list, meta)
     print(f"[SAVED] top_k_indices saved to:\n  {cache_file}")
     print(top_k_indices_list)
     # (Optional) also print some weights for inspection
-    print(weights[:10], weights.size(), weights[top_k_indices])
+    # print(weights[:10], lenweights.size(), weights[top_k_indices])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

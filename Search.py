@@ -434,7 +434,7 @@ class MyNewSearch(Search):
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",
                                                               "Please let me"], max_tokens=self.args.max_new_tokens,insert_embedding=guide_embedding,model_name = self.args.replace_name,special_token_id=self.args.special_token_id)
         # print(output_except_prompt)
-        output_except_prompt, prob_scores = parse_llm_response(self.args, output_except_prompt)
+        output_except_prompt, _ = parse_llm_response(self.args, output_except_prompt)
         # print(output_except_prompt)
         # sys.exit()
         # we need a separated parsing strategy for each model 

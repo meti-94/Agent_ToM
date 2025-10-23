@@ -21,6 +21,7 @@ from transformer_lens import HookedTransformer
 from sae_lens import SAE
 import inspect 
 from feature_sensitivity_cache import build_cache_paths, load_indices_json
+import math
 
 prompt_path = os.path.join(os.getcwd(), "prompts.yaml")
 with open(prompt_path, 'r') as f:
