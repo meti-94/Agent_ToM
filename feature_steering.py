@@ -395,7 +395,7 @@ def generate_with_SAE_model_v2(
         adjusted = resid + steering * scale
         noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
         resid = adjusted*noramlization_factor
-        # resid = adjusted
+        resid = adjusted
         return resid
     
     if seed is not None:

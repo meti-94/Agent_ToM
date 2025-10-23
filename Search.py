@@ -456,6 +456,9 @@ class MyNewSearch(Search):
             print("_" * 80 + "\n")
             print(child.cot_answer)
             answer_list.append(child.clean_answer)
+            # for the ablation study 
+            weight_list = [tensor.cpu().detach().numpy().tolist() for tensor in self.x_train_list[-5:]]
+            child.weights = weight_list
 
         # calculate reward
         total = len(answer_list)

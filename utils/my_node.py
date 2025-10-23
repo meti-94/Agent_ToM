@@ -24,6 +24,7 @@ class NODE:
                  reward: float = 0,
                  is_terminal: bool = False,
                  calc_q: Callable[[list[float]], float] = np.mean,
+                 weights: list[float] = None,
                  depth=None,
                  children=None,
                  cum_rewards=None,
@@ -56,6 +57,8 @@ class NODE:
 
         self.is_verified_true = is_verified_true
         self.is_verified = is_verified
+
+        self.weights = weights
 
         if depth is None:
             if parent is None:
@@ -93,6 +96,7 @@ class NODE:
             "prob_score": self.prob_score,
             "is_verified": self.is_verified,
             "children": [child.to_dict() for child in self.children],
+            "weights": self.weights,  
         }
 
 
