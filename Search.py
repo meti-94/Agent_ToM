@@ -9,7 +9,7 @@ from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answ
 from collections import Counter
 from utils.guassian_inference import bayessian_optimisation_torch
 from vllm_run import generate_with_vLLM_model, generate_with_vLLM_model_usually
-from feature_steering import generate_with_SAE_model, generate_with_SAE_model_v2
+from feature_steering import generate_with_SAE_model_v2
 from feature_sensitivity_cache import load_indices_json
 from utils.my_node import NODE
 import traceback

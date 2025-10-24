@@ -96,7 +96,7 @@ class NODE:
             "prob_score": self.prob_score,
             "is_verified": self.is_verified,
             "children": [child.to_dict() for child in self.children],
-            "weights": self.weights,  
+            "weights": self.weights[0] if self.weights!=None else [],  
         }
 
 

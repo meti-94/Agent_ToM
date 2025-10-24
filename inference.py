@@ -236,8 +236,6 @@ if __name__ == "__main__":
     parser.add_argument('--ucb_beta', type=float, default=2.0,help='Beta parameter for UCB if Upper Confidence Bound is used as acquisition function.') # 4.5 is good 
     parser.add_argument('--num_gpu', type=int, default=1, help='Number of GPUs to use.')
 
-
-
     parser.add_argument("--sae_base_model", type=str, default="meta-llama/Llama-3.1-8B", help="Base SAE model.")
     parser.add_argument("--release", type=str, default="llama_scope_lxr_32x", help="SAE release used when generating cached indices.")
     parser.add_argument("--hook_point", type=str, default="l28r_32x", help="SAE id/hook point used when generating cached indices.")
@@ -245,10 +243,9 @@ if __name__ == "__main__":
     parser.add_argument("--steering_scale", type=float, default=4.0, help='The scaling (intensity) factor which is applied to the SAE vectors')
     parser.add_argument("--cache_file", type=str, default="./cache/meta-llama__Llama-3.1-8B/llama_scope_lxr_32x/l28r_32x/763b7c26ea3378a5e7a78903c14f07a7de7edd3c/indices.json", 
                         help="Path to file where associated indices were saved.")
+    parser.add_argument("--steering_off", type=bool, default=False, help='This is a boolean parameter who turns steering hook deactivate if it is True')
+    parser.add_argument("--generation_temp", type=float, default=0.2, help='This parameter sets the temperature for thought generation.')
     
-    
-
-
 
     args = parser.parse_args()
     set_model_args(args)

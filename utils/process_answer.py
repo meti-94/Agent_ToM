@@ -107,12 +107,12 @@ def parse_llm_response(args, raw_responses_list):
         final_responses = []
         scores = []
         for response in raw_responses_list:
-            print(response)
+            # print(response)
             start = response.find('<unused1>')
             end = response.find('<end_of_turn>')
             final_responses.append(response[start+9:end].replace('<eos>', '').strip('Questio'))
-            print(final_responses)
-            print('---\n')
+            # print(final_responses)
+            # print('---\n')
             scores.append(instruction_following_score(final_responses[-1]))
     if "meta-llama/llama-3.1-8b" in args.model_name.lower():
         final_responses = []
