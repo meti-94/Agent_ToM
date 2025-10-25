@@ -367,7 +367,7 @@ def generate_with_SAE_model_v2(
         stop_at_eos=True, 
         max_new_tokens=max_tokens,
         return_type='str',
-        freq_penalty=0.3,
+        freq_penalty=args.freq_penalty, #0.3,
     )
     
     # latent_idxs = [  3017,  6586, 10550, 10150, 14342,  9618,  8043,   484,  8456, 13749,
@@ -383,7 +383,7 @@ def generate_with_SAE_model_v2(
     # # this is for llama 3.1 - 28 
     # latent_idxs = [ 32632,  15130,  48831,  29266,  63922,  72831,  96414,  94689,  34397,
     #     125985,  28217,  58214,  24499,  55691,  49146]
-    # print(weights)
+    print(weights)
     # static_weights = [ 476.3905, 297.6617, 267.0218, 227.5295, 187.9083, 186.5379, 286.9755,
     #             154.5167, 179.0570, 142.9292, 133.2771, 118.7599, 104.7732, 104.6720,
     #             93.7085]

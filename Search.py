@@ -388,10 +388,11 @@ class MyNewSearch(Search):
     def get_random_embedding_gaussian(self):
         args = self.args
         token_list = []
+        weights = torch.randn(1, args.num_tokens*args.dimention)
         for i in range(args.num_tokens):
             # X_train = torch.randn(1, args.dimention) 
 
-            X_train = torch.randn(1, args.dimention)  # Original tensor with random values
+            X_train = weights[:, i*args.dimention:(i+1)*args.dimention]
             X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
 
             self.x_train_list.append(X_train)

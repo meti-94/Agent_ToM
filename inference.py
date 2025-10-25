@@ -245,6 +245,7 @@ if __name__ == "__main__":
                         help="Path to file where associated indices were saved.")
     parser.add_argument("--steering_off", type=bool, default=False, help='This is a boolean parameter who turns steering hook deactivate if it is True')
     parser.add_argument("--generation_temp", type=float, default=0.2, help='This parameter sets the temperature for thought generation.')
+    parser.add_argument("--freq_penalty", type=float, default=0.3)
     
 
     args = parser.parse_args()
