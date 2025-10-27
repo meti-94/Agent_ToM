@@ -179,8 +179,6 @@ def collect_spacs( root ):
 def majority_vote(dataset, answers, answer):
     answer_counts = Counter(answers)
     most_common_answer, _ = answer_counts.most_common(1)[0]
-    print(most_common_answer)
-    print(' ')
     result = evaluate_answer(dataset, most_common_answer, answer)
     return result
 

@@ -378,15 +378,15 @@ class Search:
             json.dump(combined_results, json_file, ensure_ascii=False)
         return
 
-def my_set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+# def my_set_seed(seed):
+#     random.seed(seed)
+#     np.random.seed(seed)
+#     torch.manual_seed(seed)
+#     if torch.cuda.is_available():
+#         torch.cuda.manual_seed(seed)
+#         torch.cuda.manual_seed_all(seed)
+#     torch.backends.cudnn.deterministic = True
+#     torch.backends.cudnn.benchmark = False
 
 class MyNewSearch(Search):
     
@@ -406,11 +406,11 @@ class MyNewSearch(Search):
         print(f"GLOBAL COUNTER: {self.globalCounter}")
         # weights = torch.randn(1, args.num_tokens*args.dimention)
         for i in range(args.num_tokens):
-            my_set_seed(self.globalCounter)
-            X_train = torch.randn(1, args.dimention) 
+            # my_set_seed(self.globalCounter)
+            X_train = torch.rand(1, args.dimention) # was previously randn  
 
             # X_train = weights[:, i*args.dimention:(i+1)*args.dimention]
-            X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
+            # X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
 
             self.x_train_list.append(X_train)
             token_list.append(X_train)
