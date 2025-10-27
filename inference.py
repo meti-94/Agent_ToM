@@ -266,7 +266,7 @@ if __name__ == "__main__":
         random_seed = random_seed % (2 ** 32)
         args.seed = random_seed
     args.json_file_path = dataset2dir[args.dataset]
-    set_seed(args.seed)
+    # set_seed(args.seed)
     if args.continue_predict:
         args.output_path = args.output_base_path
     else:

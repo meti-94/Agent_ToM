@@ -13,6 +13,7 @@ from feature_steering import generate_with_SAE_model_v2
 from feature_sensitivity_cache import load_indices_json
 from utils.my_node import NODE
 import traceback
+import random
 import sys
 
 
@@ -119,15 +120,15 @@ class Search:
 
         return token_list
 
-    def get_random_embedding_gaussian(self):
-        args = self.args
-        token_list = []
-        for i in range(args.num_tokens):
-            X_train = torch.randn(1, args.dimention)
-            self.x_train_list.append(X_train)
-            X_start = torch.mm(X_train, self.A)
-            token_list.append(X_start)
-        return token_list, X_train
+    # def get_random_embedding_gaussian(self):
+    #     args = self.args
+    #     token_list = []
+    #     for i in range(args.num_tokens):
+    #         X_train = torch.randn(1, args.dimention)
+    #         self.x_train_list.append(X_train)
+    #         X_start = torch.mm(X_train, self.A)
+    #         token_list.append(X_start)
+    #     return token_list, X_train
 
 
     def generate_evaluate_prompt(self, eva_node_list):
@@ -376,27 +377,45 @@ class Search:
         with open(self.save_path, 'w', encoding="utf-8") as json_file:
             json.dump(combined_results, json_file, ensure_ascii=False)
         return
-    
+
+def my_set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 class MyNewSearch(Search):
+    
     def __init__(self, sae_model, sae, *args, **kwargs):
         self.sae_model = sae_model
         self.sae = sae
         self.args = args 
+        self.globalCounter = 0
         super().__init__(*args, **kwargs)
 
 
     def get_random_embedding_gaussian(self):
         args = self.args
         token_list = []
-        weights = torch.randn(1, args.num_tokens*args.dimention)
+        # global globalCounter
+        random_weights = []
+        print(f"GLOBAL COUNTER: {self.globalCounter}")
+        # weights = torch.randn(1, args.num_tokens*args.dimention)
         for i in range(args.num_tokens):
-            # X_train = torch.randn(1, args.dimention) 
+            my_set_seed(self.globalCounter)
+            X_train = torch.randn(1, args.dimention) 
 
-            X_train = weights[:, i*args.dimention:(i+1)*args.dimention]
+            # X_train = weights[:, i*args.dimention:(i+1)*args.dimention]
             X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
 
             self.x_train_list.append(X_train)
             token_list.append(X_train)
+            self.globalCounter += 1
+            random_weights.append(X_train)
         return token_list, X_train
 
     def collect_x_train_and_rewards(self, root_node):
@@ -415,13 +434,13 @@ class MyNewSearch(Search):
 
     def _expand_child(self, node):
         if node.parent is None:
-            for _ in range(self.num_repeats):
+            for i in range(self.num_repeats):
                 guide_embedding, x_train = self.get_random_embedding_gaussian()
-                node.children.append(NODE(guide_embedding=guide_embedding, parent=node, x_train = x_train))
+                node.children.append(NODE(guide_embedding=[guide_embedding], parent=node, x_train = x_train, weights=x_train))
         else:
             guide_embeddings, x_trains = self.collect_x_train_and_rewards(self.root)
             for i in range(self.num_repeats):
-                node.children.append(NODE(guide_embedding=[guide_embeddings[i]], parent=node, x_train = x_trains[i]))
+                node.children.append(NODE(guide_embedding=[guide_embeddings[i]], parent=node, x_train = x_trains[i], weights=x_trains[i]))
 
         answer_list = []
         new_nodes = [child for child in node.children if child.model_answer is None]
@@ -458,8 +477,8 @@ class MyNewSearch(Search):
             print(child.cot_answer)
             answer_list.append(child.clean_answer)
             # for the ablation study 
-            weight_list = [tensor.cpu().detach().numpy().tolist() for tensor in self.x_train_list[-5:]]
-            child.weights = weight_list
+            # weight_list = [item.cpu().detach().numpy().tolist() for item in self.x_train_list[-5:]]
+            # child.weights = weight_list
 
         # calculate reward
         total = len(answer_list)

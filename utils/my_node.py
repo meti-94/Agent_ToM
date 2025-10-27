@@ -76,6 +76,9 @@ class NODE:
 
 
     def to_dict(self):
+        if(self.weights is None):
+            self.weights = []
+        self.weights = [item.cpu().detach().numpy().tolist() for item in self.weights if self.weights is not None]
         return {
             "id": self.id,
             "question": self.question,
@@ -96,7 +99,7 @@ class NODE:
             "prob_score": self.prob_score,
             "is_verified": self.is_verified,
             "children": [child.to_dict() for child in self.children],
-            "weights": self.weights[0] if self.weights!=None else [],  
+            "weights": self.weights,  
         }
 
 

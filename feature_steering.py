@@ -398,8 +398,8 @@ def generate_with_SAE_model_v2(
         resid = adjusted
         return resid
     
-    if seed is not None:
-        torch.manual_seed(seed)
+    # if seed is not None:
+    #     torch.manual_seed(seed)
 
     SAE_vectors = sae[0].W_dec[indices]
     hook_point = sae[1]['hook_name'] # we need a translation here args.hook_point 
