@@ -120,15 +120,15 @@ class Search:
 
         return token_list
 
-    # def get_random_embedding_gaussian(self):
-    #     args = self.args
-    #     token_list = []
-    #     for i in range(args.num_tokens):
-    #         X_train = torch.randn(1, args.dimention)
-    #         self.x_train_list.append(X_train)
-    #         X_start = torch.mm(X_train, self.A)
-    #         token_list.append(X_start)
-    #     return token_list, X_train
+    def get_random_embedding_gaussian(self):
+        args = self.args
+        token_list = []
+        for i in range(args.num_tokens):
+            X_train = torch.randn(1, args.dimention)
+            self.x_train_list.append(X_train)
+            X_start = torch.mm(X_train, self.A)
+            token_list.append(X_start)
+        return token_list, X_train
 
 
     def generate_evaluate_prompt(self, eva_node_list):
@@ -407,7 +407,7 @@ class MyNewSearch(Search):
         # weights = torch.randn(1, args.num_tokens*args.dimention)
         for i in range(args.num_tokens):
             # my_set_seed(self.globalCounter)
-            X_train = torch.rand(1, args.dimention) # was previously randn  
+            X_train = 2 * torch.rand(1, args.dimention) - 1 # was previously randn  
 
             # X_train = weights[:, i*args.dimention:(i+1)*args.dimention]
             # X_train = (X_train - X_train.min()) / (X_train.max() - X_train.min())
@@ -445,10 +445,14 @@ class MyNewSearch(Search):
         answer_list = []
         new_nodes = [child for child in node.children if child.model_answer is None]
         guide_embedding = [node.guide_embedding for node in new_nodes]
-
-        cached = load_indices_json(self.args.cache_file)
-        top_k_indices = cached.get("top_k_indices", [])
-        # indices = 
+        if self.args.random_sae:
+            random.seed(42)
+            top_k_indices = [random.randint(1, 16000) for _ in range(15)]
+            print(top_k_indices)
+        else:
+            cached = load_indices_json(self.args.cache_file)
+            top_k_indices = cached.get("top_k_indices", [])
+        
         output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.args, self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
                                                         indices=top_k_indices, temperature=0.0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",

@@ -247,6 +247,13 @@ if __name__ == "__main__":
     parser.add_argument("--generation_temp", type=float, default=0.2, help='This parameter sets the temperature for thought generation.')
     parser.add_argument("--freq_penalty", type=float, default=0.3)
     
+    parser.add_argument(
+        "--random_sae",
+        action="store_true",
+        help="Using random instead of selected SAEs"
+    )
+
+    
 
     args = parser.parse_args()
     set_model_args(args)
