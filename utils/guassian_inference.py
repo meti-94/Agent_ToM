@@ -97,7 +97,7 @@ def bayessian_optimisation_torch(X_train, y_train, dimention, number=5, method='
     """
     device = X_train.device
     # Generate candidate points uniformly at random
-    X_test = torch.rand(5000, dimention, device=device)
+    X_test = 2 * torch.rand(5000, dimention, device=device) - 1 # torch.rand(5000, dimention, device=device) # I changed it intentionally 
     # Compute GP posterior mean and variance at candidate points
     mu_x, sigma_x = gp_posterior_torch(X_test, X_train, y_train, length_scale=1.0, sigma_f=1.0, sigma_y=1e-8)
     f_max = torch.max(y_train)
