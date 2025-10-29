@@ -246,12 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("--steering_off", type=bool, default=False, help='This is a boolean parameter who turns steering hook deactivate if it is True')
     parser.add_argument("--generation_temp", type=float, default=0.2, help='This parameter sets the temperature for thought generation.')
     parser.add_argument("--freq_penalty", type=float, default=0.3)
-    
-    parser.add_argument(
-        "--random_sae",
-        action="store_true",
-        help="Using random instead of selected SAEs"
-    )
+    parser.add_argument("--sae_selection", type=str, default='relevant', help='This parameter set the type of SAEs to be used in Steering; select from [relevant, random, abliation_positive, abliation_negative]')
 
     
 

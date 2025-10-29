@@ -7,7 +7,7 @@ from tqdm import trange
 import torch
 from utils.process_answer import get_cot_answer, get_clean_answer, evaluate_answer, get_number, parse_llm_response
 from collections import Counter
-from utils.guassian_inference import bayessian_optimisation_torch
+from utils.guassian_inference import bayessian_optimisation_torch, my_bayessian_optimisation_torch
 from vllm_run import generate_with_vLLM_model, generate_with_vLLM_model_usually
 from feature_steering import generate_with_SAE_model_v2
 from feature_sensitivity_cache import load_indices_json
@@ -424,7 +424,7 @@ class MyNewSearch(Search):
         reward = torch.tensor(self.reward_list, dtype=torch.float32, device=x_train.device).view(-1, 1)
 
         with torch.no_grad():
-            top_5_points = bayessian_optimisation_torch(x_train, reward, self.args.dimention, self.args.num_repeats, self.args.function_method, self.args.ucb_beta)
+            top_5_points = my_bayessian_optimisation_torch(x_train, reward, self.args.dimention, self.args.num_repeats, self.args.function_method, self.args.ucb_beta)
             X_new = torch.mm(top_5_points, self.A)
         top_5_points_list = [point.view(1, -1) for point in top_5_points]
         self.x_train_list += top_5_points_list
@@ -445,14 +445,28 @@ class MyNewSearch(Search):
         answer_list = []
         new_nodes = [child for child in node.children if child.model_answer is None]
         guide_embedding = [node.guide_embedding for node in new_nodes]
-        if self.args.random_sae:
-            random.seed(42)
-            top_k_indices = [random.randint(1, 16000) for _ in range(15)]
-            print(top_k_indices)
-        else:
+        if self.args.sae_selection=='random':
+            # random.seed(42)
+            # random_saes = [random.randint(1, 16000) for _ in range(15)]
             cached = load_indices_json(self.args.cache_file)
-            top_k_indices = cached.get("top_k_indices", [])
+            top_k_indices = cached.get(self.args.dataset, []).get('random', [])
+        elif self.args.sae_selection=='relevant':
+            cached = load_indices_json(self.args.cache_file)
+            top_k_indices = cached.get(self.args.dataset, []).get('relevant', [])
+        elif self.args.sae_selection=='ablation_positive':
+            # print('this is the last line')
+            # sys.exit()
+            cached = load_indices_json(self.args.cache_file)
+            relevant_saes = cached.get(self.args.dataset, []).get('relevant', [])
+            random_saes = cached.get(self.args.dataset, []).get('random', [])
+            top_k_indices = relevant_saes[:4]+random_saes[4:]
+        elif self.args.sae_selection=='ablation_nagative':
+            cached = load_indices_json(self.args.cache_file)
+            relevant_saes = cached.get(self.args.dataset, []).get('relevant', [])
+            random_saes = cached.get(self.args.dataset, []).get('random', [])
+            top_k_indices = random_saes[:4]+relevant_saes[4:]
         
+
         output_except_prompt,prob_scores = generate_with_SAE_model_v2(self.args, self.sae_model, self.sae, self.x_train_list[-5:], model=self.model, input=self.user_prompt,
                                                         indices=top_k_indices, temperature=0.0, n=self.args.num_repeats,
                                                         stop=["Question:\n", 'Here are some examples:', "Final Answer:",

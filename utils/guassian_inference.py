@@ -82,6 +82,42 @@ def probability_of_improvement_torch(mu_n, sigma_n_squared, f_max):
     Z = (mu_n - f_max) / sigma_n
     return normal.cdf(Z)
 
+def my_bayessian_optimisation_torch(X_train, y_train, dimention, number=5, method='ei', beta=2.0):
+    """
+    Runs Bayesian Optimization using GP surrogate and given acquisition function.
+    Args:
+        X_train: (N_train, D) training points
+        y_train: (N_train,) training values
+        dimention: int, search space dimension
+        number: int, number of top candidates to return
+        method: str, acquisition function ('ei', 'pi', 'ucb')
+        beta: float, UCB beta parameter
+    Returns:
+        (number, dimention) tensor, the best candidate points selected by acquisition function
+    """
+    device = X_train.device
+    # Generate candidate points uniformly at random
+    X_test = 2 * torch.rand(5000, dimention, device=device) - 1 # torch.rand(5000, dimention, device=device) # I changed it intentionally 
+    # Compute GP posterior mean and variance at candidate points
+    mu_x, sigma_x = gp_posterior_torch(X_test, X_train, y_train, length_scale=1.0, sigma_f=1.0, sigma_y=1e-8)
+    f_max = torch.max(y_train)
+
+    if method == 'ei':
+        Delta_n = f_max - mu_x
+        acq_value = expected_improvement_general_torch(Delta_n, sigma_x)
+    elif method == 'pi':
+        acq_value = probability_of_improvement_torch(mu_x, sigma_x, f_max)
+    elif method == 'ucb':
+        acq_value = upper_confidence_bound_torch(mu_x, sigma_x, beta)
+    else:
+        raise ValueError("Unsupported acquisition function method: choose 'ei', 'pi', or 'ucb'.")
+
+    # Select top candidate points according to acquisition value
+    top_5_indices = torch.argsort(acq_value, descending=True)[:number]
+    top_5_points = X_test[top_5_indices]
+
+    return top_5_points
+
 def bayessian_optimisation_torch(X_train, y_train, dimention, number=5, method='ei', beta=2.0):
     """
     Runs Bayesian Optimization using GP surrogate and given acquisition function.
