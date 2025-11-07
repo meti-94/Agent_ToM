@@ -23,11 +23,11 @@ import inspect
 from collections import Counter
 from utils.process_answer import parse_llm_response
 
-torch.set_grad_enabled(False)
+# torch.set_grad_enabled(False)
 
-torch.cuda.empty_cache()
-accelerator = Accelerator()
-accelerator.free_memory()
+# torch.cuda.empty_cache()
+# accelerator = Accelerator()
+# accelerator.free_memory()
 
 # def compute_metrics(input_sentence, metric):
 #     if metric == 'rs':
@@ -353,7 +353,7 @@ def generate_with_SAE_model_v2(
         
 
     ):
-    if args.sae_base_model=='google/gemma-2-2b':
+    if 'gemma' in args.sae_base_model:
         stop_at = [[9413], [81435], [22804]]
     if args.sae_base_model=='meta-llama/Llama-3.1-8B':
         stop_at = [[14924], [128001]]
@@ -383,7 +383,7 @@ def generate_with_SAE_model_v2(
     # # this is for llama 3.1 - 28 
     # latent_idxs = [ 32632,  15130,  48831,  29266,  63922,  72831,  96414,  94689,  34397,
     #     125985,  28217,  58214,  24499,  55691,  49146]
-    print(weights)
+    # print(weights)
     # static_weights = [ 476.3905, 297.6617, 267.0218, 227.5295, 187.9083, 186.5379, 286.9755,
     #             154.5167, 179.0570, 142.9292, 133.2771, 118.7599, 104.7732, 104.6720,
     #             93.7085]
@@ -393,8 +393,8 @@ def generate_with_SAE_model_v2(
     # latent 
     def patch_resid(resid, hook, steering, scale=320):
         adjusted = resid + steering * scale
-        noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
-        resid = adjusted*noramlization_factor
+        # noramlization_factor = (torch.norm(resid, p=2))/(torch.norm(adjusted , p=2))
+        # resid = adjusted*noramlization_factor
         resid = adjusted
         return resid
     
@@ -402,7 +402,8 @@ def generate_with_SAE_model_v2(
     #     torch.manual_seed(seed)
 
     SAE_vectors = sae[0].W_dec[indices]
-    hook_point = sae[1]['hook_name'] # we need a translation here args.hook_point 
+    # print(sae[1])
+    hook_point = sae[1]['metadata']['hook_name'] # we need a translation here args.hook_point 
     tokenized = sae_model.to_tokens(input)
     # print(input[0])
     # print(SAE_vectors.dtype,  weights[0][0].to('cuda:1').dtype)
@@ -413,6 +414,7 @@ def generate_with_SAE_model_v2(
     # weighted_SAE_vectors = torch.stack([
     #     torch.tensor(static_weights).to('cuda:1') @ SAE_vectors for _ in range(5)
     # ]).unsqueeze(1) 
+    # print("Valid hook points:", sae_model.hook_dict.keys())
     if args.steering_off==False:
         with sae_model.hooks([(hook_point, partial(patch_resid, steering=weighted_SAE_vectors, scale=args.steering_scale))]): # 15 12 is a good retio for gemma 2 2b 4 is good for llamma 
             output = sae_model.generate(   

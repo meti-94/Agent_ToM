@@ -1,5 +1,4 @@
 import os
-os.environ['HF_HOME'] = '/mnt/datadisk/Mehdi'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 import argparse
